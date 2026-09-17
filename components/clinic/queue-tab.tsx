@@ -23,23 +23,30 @@ function sapXepHangDoi(hangDoi: HangDoiItem[]) {
 function MucUuTienBadge({ mucUuTien }: { mucUuTien: 1 | 2 | 3 }) {
   if (mucUuTien === 1) {
     return (
-      <Badge variant="destructive" className="gap-1">
-        <AlertTriangle data-icon="inline-start" />
+      <span className="inline-flex items-center gap-1 text-sm font-medium text-destructive">
+        <AlertTriangle data-icon="inline-start" className="size-4" />
         Cấp cứu
-      </Badge>
+      </span>
     )
   }
   if (mucUuTien === 2) {
-    return <Badge className="border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-100">Ưu tiên cao</Badge>
+    return (
+      <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-50">
+        Ưu tiên cao
+      </Badge>
+    )
   }
-  return <Badge variant="secondary">Bình thường</Badge>
+  return <span className="text-sm text-muted-foreground">Bình thường</span>
 }
 
 function TrangThaiBadge({ trangThai }: { trangThai: HangDoiItem["trangThai"] }) {
-  if (trangThai === "Đang chờ khám") return <Badge variant="outline">Đang chờ khám</Badge>
-  if (trangThai === "Đang khám") return <Badge className="bg-blue-600 text-white hover:bg-blue-600">Đang khám</Badge>
-  if (trangThai === "Đã khám") return <Badge variant="secondary">Đã khám</Badge>
-  return <Badge variant="destructive">Đã hủy</Badge>
+  if (trangThai === "Đang chờ khám")
+    return <Badge variant="secondary" className="text-muted-foreground">Đang chờ khám</Badge>
+  if (trangThai === "Đang khám")
+    return <Badge className="border-emerald-200 bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Đang khám</Badge>
+  if (trangThai === "Đã khám")
+    return <Badge className="border-blue-200 bg-blue-100 text-blue-700 hover:bg-blue-100">Đã khám</Badge>
+  return <Badge className="border-red-200 bg-red-100 text-red-700 hover:bg-red-100">Đã hủy</Badge>
 }
 
 export function QueueTab({
