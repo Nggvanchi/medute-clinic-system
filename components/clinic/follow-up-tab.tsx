@@ -7,9 +7,25 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import type { LichTaiKhamItem } from "@/lib/clinic-types"
+
+const NOI_DUNG_TAI_KHAM = [
+  "Tái khám Nội tổng quát",
+  "Tái khám Tim mạch",
+  "Tái khám Hô hấp",
+  "Tái khám Tiêu hóa",
+  "Tái khám Tai Mũi Họng",
+  "Tái khám Răng Hàm Mặt",
+  "Tái khám Da liễu",
+  "Tái khám Mắt",
+  "Tái khám Cơ xương khớp",
+  "Tái khám Thần kinh",
+  "Tái khám Sản – Phụ khoa",
+  "Tái khám Nhi",
+]
 
 function parseNgayVN(ngay: string) {
   const [d, m, y] = ngay.split("/").map(Number)
@@ -86,12 +102,20 @@ export function FollowUpTab({
               </div>
               <Field>
                 <FieldLabel htmlFor="noi-dung-tai-kham">Nội dung tái khám</FieldLabel>
-                <Input
-                  id="noi-dung-tai-kham"
-                  placeholder="VD: Tái khám huyết áp"
-                  value={noiDung}
-                  onChange={(e) => setNoiDung(e.target.value)}
-                />
+                <Select value={noiDung} onValueChange={setNoiDung}>
+                  <SelectTrigger id="noi-dung-tai-kham" className="w-full">
+                    <SelectValue placeholder="Chọn nội dung tái khám" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {NOI_DUNG_TAI_KHAM.map((nd) => (
+                        <SelectItem key={nd} value={nd} label={nd}>
+                          {nd}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </Field>
               <Button type="submit" disabled={!coTheTao} className="w-fit">
                 <CalendarClock data-icon="inline-start" />

@@ -45,7 +45,9 @@ export interface LichTaiKhamItem {
 
 export interface LichHenItem {
   id: string
-  maBN: string
+  hoTen: string
+  ngaySinh: string
+  sdt: string
   nhuCauKham: string
   ngay: string
   khungGioId: string

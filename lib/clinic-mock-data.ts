@@ -42,8 +42,8 @@ export const khungGioKhamKhoiTao: KhungGioKhamItem[] = [
 ]
 
 export const lichTaiKhamKhoiTao: LichTaiKhamItem[] = [
-  { id: "tk-1", maBN: "BN100235", ngay: "19/09/2026", gio: "09:00", noiDung: "Tái khám huyết áp", trangThai: "Sắp tới" },
-  { id: "tk-2", maBN: "BN000101", ngay: "20/09/2026", gio: "10:30", noiDung: "Kiểm tra kết quả xét nghiệm máu", trangThai: "Sắp tới" },
-  { id: "tk-3", maBN: "BN000104", ngay: "05/10/2026", gio: "14:00", noiDung: "Tái khám sau phẫu thuật", trangThai: "Sắp tới" },
-  { id: "tk-4", maBN: "BN000107", ngay: "01/09/2026", gio: "08:30", noiDung: "Tái khám tổng quát", trangThai: "Hoàn thành" },
+  { id: "tk-1", maBN: "BN100235", ngay: "19/09/2026", gio: "09:00", noiDung: "Tái khám Tim mạch", trangThai: "Sắp tới" },
+  { id: "tk-2", maBN: "BN000101", ngay: "20/09/2026", gio: "10:30", noiDung: "Tái khám Nội tổng quát", trangThai: "Sắp tới" },
+  { id: "tk-3", maBN: "BN000104", ngay: "05/10/2026", gio: "14:00", noiDung: "Tái khám Cơ xương khớp", trangThai: "Sắp tới" },
+  { id: "tk-4", maBN: "BN000107", ngay: "01/09/2026", gio: "08:30", noiDung: "Tái khám Nội tổng quát", trangThai: "Hoàn thành" },
 ]

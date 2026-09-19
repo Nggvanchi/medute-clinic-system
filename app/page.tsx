@@ -47,7 +47,14 @@ export default function ClinicDashboard() {
     setHangDoi((prev) => prev.map((item) => (item.id === id ? { ...item, trangThai: "Đang khám" } : item)))
   }
 
-  function handleDatLich(data: { maBN: string; nhuCauKham: string; ngay: string; khungGioId: string }) {
+  function handleDatLich(data: {
+    hoTen: string
+    ngaySinh: string
+    sdt: string
+    nhuCauKham: string
+    ngay: string
+    khungGioId: string
+  }) {
     const idMoi = `lh-${Date.now()}`
     setLichHen((prev) => [...prev, { id: idMoi, trangThai: "Đã đặt", ...data }])
     setKhungGioKham((prev) =>

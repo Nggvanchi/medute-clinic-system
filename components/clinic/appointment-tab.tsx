@@ -11,7 +11,20 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { KhungGioKhamItem, LichHenItem } from "@/lib/clinic-types"
 
-const NHU_CAU_KHAM = ["Khám tổng quát", "Khám chuyên khoa Tim mạch", "Khám chuyên khoa Da liễu", "Khám Nhi", "Xét nghiệm"]
+const NHU_CAU_KHAM = [
+  "Khám tổng quát",
+  "Khám Tim mạch",
+  "Khám Hô hấp",
+  "Khám Tiêu hóa",
+  "Khám Tai Mũi Họng",
+  "Khám Răng Hàm Mặt",
+  "Khám Da liễu",
+  "Khám Mắt",
+  "Khám Cơ xương khớp",
+  "Khám Thần kinh",
+  "Khám Sản – Phụ khoa",
+  "Khám Nhi",
+]
 
 export function AppointmentTab({
   lichHen,
@@ -21,24 +34,50 @@ export function AppointmentTab({
 }: {
   lichHen: LichHenItem[]
   khungGioKham: KhungGioKhamItem[]
-  onDatLich: (data: { maBN: string; nhuCauKham: string; ngay: string; khungGioId: string }) => void
+  onDatLich: (data: {
+    hoTen: string
+    ngaySinh: string
+    sdt: string
+    nhuCauKham: string
+    ngay: string
+    khungGioId: string
+  }) => void
   onHuyLich: (id: string) => void
 }) {
-  const [maBN, setMaBN] = useState("")
+  const [hoTen, setHoTen] = useState("")
+  const [ngaySinh, setNgaySinh] = useState("")
+  const [sdt, setSdt] = useState("")
   const [nhuCauKham, setNhuCauKham] = useState("")
   const [ngay, setNgay] = useState("")
   const [khungGioId, setKhungGioId] = useState("")
 
   const khungGioDaChon = useMemo(() => khungGioKham.find((k) => k.id === khungGioId), [khungGioKham, khungGioId])
   const coTheDat =
-    maBN.trim() && nhuCauKham && ngay && khungGioId && khungGioDaChon && khungGioDaChon.daDat < khungGioDaChon.soLuongToiDa
+    hoTen.trim() &&
+    ngaySinh &&
+    sdt.trim() &&
+    nhuCauKham &&
+    ngay &&
+    khungGioId &&
+    khungGioDaChon &&
+    khungGioDaChon.daDat < khungGioDaChon.soLuongToiDa
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!coTheDat) return
+    const [ySinh, mSinh, dSinh] = ngaySinh.split("-")
     const [y, m, d] = ngay.split("-")
-    onDatLich({ maBN: maBN.trim(), nhuCauKham, ngay: `${d}/${m}/${y}`, khungGioId })
-    setMaBN("")
+    onDatLich({
+      hoTen: hoTen.trim(),
+      ngaySinh: `${dSinh}/${mSinh}/${ySinh}`,
+      sdt: sdt.trim(),
+      nhuCauKham,
+      ngay: `${d}/${m}/${y}`,
+      khungGioId,
+    })
+    setHoTen("")
+    setNgaySinh("")
+    setSdt("")
     setNhuCauKham("")
     setNgay("")
     setKhungGioId("")
@@ -57,12 +96,30 @@ export function AppointmentTab({
           <form onSubmit={handleSubmit}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="ma-bn-dat-lich">Mã bệnh nhân</FieldLabel>
+                <FieldLabel htmlFor="ho-ten-dat-lich">Họ và tên</FieldLabel>
                 <Input
-                  id="ma-bn-dat-lich"
-                  placeholder="VD: BN000101"
-                  value={maBN}
-                  onChange={(e) => setMaBN(e.target.value)}
+                  id="ho-ten-dat-lich"
+                  placeholder="VD: Nguyễn Văn An"
+                  value={hoTen}
+                  onChange={(e) => setHoTen(e.target.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="ngay-sinh-dat-lich">Ngày sinh</FieldLabel>
+                <Input
+                  id="ngay-sinh-dat-lich"
+                  type="date"
+                  value={ngaySinh}
+                  onChange={(e) => setNgaySinh(e.target.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="sdt-dat-lich">Số điện thoại</FieldLabel>
+                <Input
+                  id="sdt-dat-lich"
+                  placeholder="VD: 0912345678"
+                  value={sdt}
+                  onChange={(e) => setSdt(e.target.value)}
                 />
               </Field>
               <Field>
@@ -131,7 +188,9 @@ export function AppointmentTab({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Mã BN</TableHead>
+                <TableHead>Họ và tên</TableHead>
+                <TableHead>Ngày sinh</TableHead>
+                <TableHead>Số điện thoại</TableHead>
                 <TableHead>Nhu cầu khám</TableHead>
                 <TableHead>Ngày</TableHead>
                 <TableHead>Giờ</TableHead>
@@ -142,7 +201,7 @@ export function AppointmentTab({
             <TableBody>
               {lichHen.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
                     Chưa có lịch hẹn nào.
                   </TableCell>
                 </TableRow>
@@ -151,7 +210,9 @@ export function AppointmentTab({
                   const khungGio = khungGioKham.find((k) => k.id === lh.khungGioId)
                   return (
                     <TableRow key={lh.id}>
-                      <TableCell className="font-mono text-sm">{lh.maBN}</TableCell>
+                      <TableCell className="font-medium">{lh.hoTen}</TableCell>
+                      <TableCell>{lh.ngaySinh}</TableCell>
+                      <TableCell className="font-mono text-sm">{lh.sdt}</TableCell>
                       <TableCell>{lh.nhuCauKham}</TableCell>
                       <TableCell>{lh.ngay}</TableCell>
                       <TableCell>{khungGio?.gio ?? "—"}</TableCell>
