@@ -12,13 +12,13 @@ export const danhSachBenhNhan: BenhNhan[] = [
 ]
 
 export const hangDoiKhoiTao: HangDoiItem[] = [
-  { id: "hd-1", maBN: "BN000103", mucUuTien: 1, gioHen: "08:00", trangThai: "Đang chờ khám" },
-  { id: "hd-2", maBN: "BN000101", mucUuTien: 3, gioHen: "08:15", trangThai: "Đang chờ khám" },
-  { id: "hd-3", maBN: "BN000104", mucUuTien: 2, gioHen: "08:30", trangThai: "Đang chờ khám" },
-  { id: "hd-4", maBN: "BN000102", mucUuTien: 3, gioHen: "08:45", trangThai: "Đang chờ khám" },
-  { id: "hd-5", maBN: "BN000106", mucUuTien: 2, gioHen: "09:00", trangThai: "Đang chờ khám" },
-  { id: "hd-6", maBN: "BN000105", mucUuTien: 3, gioHen: "09:15", trangThai: "Đang khám" },
-  { id: "hd-7", maBN: "BN000107", mucUuTien: 1, gioHen: "09:30", trangThai: "Đã khám" },
+  { id: "hd-1", maBN: "BN000103", mucUuTien: 1, gioHen: "08:00", gioDangKy: "07:42", trangThai: "Đang chờ khám" },
+  { id: "hd-2", maBN: "BN000101", mucUuTien: 3, gioHen: "08:15", gioDangKy: "07:50", trangThai: "Đang chờ khám" },
+  { id: "hd-3", maBN: "BN000104", mucUuTien: 2, gioHen: "08:30", gioDangKy: "07:35", trangThai: "Đang chờ khám" },
+  { id: "hd-4", maBN: "BN000102", mucUuTien: 3, gioHen: "08:45", gioDangKy: "08:20", trangThai: "Đang chờ khám" },
+  { id: "hd-5", maBN: "BN000106", mucUuTien: 2, gioHen: "09:00", gioDangKy: "07:55", trangThai: "Đang chờ khám" },
+  { id: "hd-6", maBN: "BN000105", mucUuTien: 3, gioHen: "09:15", gioDangKy: "08:05", trangThai: "Đang khám" },
+  { id: "hd-7", maBN: "BN000107", mucUuTien: 1, gioHen: "09:30", gioDangKy: "07:10", trangThai: "Đã khám" },
 ]
 
 export const lichSuKhamKhoiTao: LichSuKhamItem[] = [
