@@ -1,89 +1,132 @@
-# Quản lý Hồ sơ Bệnh nhân
+# ClinicCare - Hệ Thống Quản Lý Hồ Sơ & Lịch Khám Phòng Khám
 
-Giao diện dashboard hỗ trợ nhân viên phòng khám theo dõi hàng đợi, tra cứu hồ sơ và lịch sử khám, đặt hoặc hủy lịch khám, cũng như lập lịch tái khám. Ứng dụng dùng dữ liệu mẫu để trình diễn các luồng thao tác trên giao diện.
+Hệ thống Dashboard quản trị và điều phối phòng khám y tế hiện đại (**ClinicCare**), được xây dựng trên nền tảng **Next.js 16**, **React 19**, **TypeScript** và **Tailwind CSS 4**. Ứng dụng cung cấp giải pháp toàn diện cho nhân viên y tế và bác sĩ: quản lý hàng đợi tiếp nhận thông minh, điều phối bệnh nhân theo mức ưu tiên, truy xuất hồ sơ theo khung thời gian, tra cứu bệnh án cùng dòng thời gian y tế (Medical Timeline), đặt/hủy lịch hẹn và quản lý lịch tái khám tự động.
 
-## Chức năng giao diện
+---
 
-- **Hàng đợi bệnh nhân:** xem danh sách theo thứ tự đăng ký hoặc mức ưu tiên (cấp cứu, ưu tiên cao, bình thường); tìm nhanh theo tên, mã bệnh nhân hoặc số điện thoại; gọi bệnh nhân đang chờ vào khám.
-- **Truy xuất theo thời gian:** lọc bệnh nhân theo giờ hẹn, chọn khoảng giờ tùy ý hoặc dùng nhanh các khoảng ca sáng/ca chiều. Có thể kết hợp với ô tìm kiếm nhanh trên thanh đầu trang.
-- **Tra cứu & lịch sử:** tra cứu hồ sơ theo mã bệnh nhân, xem thông tin cá nhân và các lượt khám đã lưu trong dữ liệu mẫu; xóa một lượt khỏi danh sách lịch sử hiển thị.
-- **Đặt / hủy lịch:** nhập thông tin bệnh nhân, chọn nhu cầu khám, ngày và khung giờ; khung giờ hết chỗ bị vô hiệu hóa. Danh sách lịch hẹn hiển thị trạng thái và cho phép hủy lịch.
-- **Nhắc lịch khám:** tạo lịch tái khám theo mã bệnh nhân, ngày, giờ và nội dung; xem các lịch đã tạo cùng trạng thái.
-- **Giao diện sáng/tối:** chuyển đổi thủ công giữa giao diện sáng và tối; mặc định theo thiết lập hệ thống.
+## 📑 Mục lục
 
-## Công nghệ
+1. [Chi tiết các phân hệ chức năng](#-chi-tiết-các-phân-hệ-chức-năng)
+   - [1. Hàng đợi bệnh nhân (Patient Queue)](#1-hàng-đợi-bệnh-nhân-patient-queue)
+   - [2. Truy xuất theo thời gian (Time-range Retrieval)](#2-truy-xuất-theo-thời-gian-time-range-retrieval)
+   - [3. Tra cứu & Lịch sử khám (Lookup & Medical Timeline)](#3-tra-cứu--lịch-sử-khám-lookup--medical-timeline)
+   - [4. Đặt / Hủy lịch khám (Appointment Booking)](#4-đặt--hủy-lịch-khám-appointment-booking)
+   - [5. Nhắc lịch khám (Follow-up Reminders)](#5-nhắc-lịch-khám-follow-up-reminders)
+2. [Công nghệ sử dụng](#-công-nghệ-sử-dụng)
+3. [Cài đặt và khởi chạy](#-cài-đặt-và-khởi-chạy)
+4. [Dữ liệu & Giới hạn hiện tại](#-dữ-liệu--giới-hạn-hiện-tại)
 
-- Next.js 16 (App Router), React 19 và TypeScript
-- Tailwind CSS 4
-- Bộ component giao diện theo phong cách shadcn/ui, xây dựng trên Base UI
-- Lucide React cho biểu tượng
-- `next-themes` cho giao diện sáng/tối
+---
 
-## Yêu cầu
+## 🩺 Chi tiết các phân hệ chức năng
 
-- Node.js phiên bản tương thích với Next.js 16
-- pnpm (phiên bản dự án khai báo: `12.3.4`)
+### 1. Hàng đợi bệnh nhân (Patient Queue)
+Quản lý lượt gọi khám và điều phối tiếp nhận bệnh nhân theo thời gian thực:
+- **Hai chế độ phân loại**:
+  - *Theo thứ tự đăng ký tiếp nhận*: Xếp theo nguyên tắc FIFO (First-In, First-Out) dựa vào thời điểm bệnh nhân check-in.
+  - *Theo mức độ ưu tiên*: Tự động phân cấp theo 3 mức độ lâm sàng:
+    - 🔴 **Mức 1 - Cấp cứu**: Ưu tiên cao nhất.
+    - 🟡 **Mức 2 - Ưu tiên cao**: Người già, trẻ nhỏ, phụ nữ mang thai hoặc bệnh cấp tính.
+    - ⚪ **Mức 3 - Bình thường**: Khám định kỳ hoặc tái khám thông thường.
+- **Thống kê nhanh số lượng**: Hiển thị tổng số bệnh nhân đang chờ theo từng nhóm ưu tiên.
+- **Bộ lọc tìm kiếm tức thì**: Lọc theo Họ tên, Mã bệnh nhân (VD: `BN100235`) hoặc Số điện thoại.
+- **Hành động gọi khám**: Nút *"Gọi khám"* chuyển đổi trạng thái bệnh nhân từ `Đang chờ khám` sang `Đang khám`.
 
-## Cài đặt và chạy
+### 2. Truy xuất theo thời gian (Time-range Retrieval)
+Giải thuật tìm kiếm và phân đoạn bệnh nhân theo khung giờ:
+- **Khoảng thời gian tùy chọn**: Chọn mốc giờ bắt đầu và giờ kết thúc (hệ thống 48 ca khám 30 phút trong 24h).
+- **Bộ lọc nhanh theo ca làm việc**:
+  - 🌅 Ca sáng: `07:30 – 11:30`
+  - ☀️ Ca chiều: `13:00 – 17:00`
+  - 🌙 Ca tối: `17:30 – 20:00`
+- **Bảng kết quả**: Hiển thị danh sách các bệnh nhân có giờ hẹn nằm chính xác trong khoảng thời gian đã lọc.
 
-Cài dependencies:
+### 3. Tra cứu & Lịch sử khám (Lookup & Medical Timeline)
+Phân hệ cốt lõi hiển thị hồ sơ chi tiết và lịch sử khám bệnh:
+- **Card Tìm kiếm nhanh**:
+  - Ô nhập mã bệnh nhân hoặc tên kèm nút tìm kiếm nổi bật.
+  - Hàng gợi ý mã nhanh (Quick Suggestion Chips): `BN100235`, `BN000107`, `BN000101`, `BN000103` (click vào tự động điền và truy xuất tức thì).
+- **Card Thông tin bệnh nhân (Patient Profile - Chiếm ~47% Desktop)**:
+  - Header: Avatar tròn người dùng, Họ và tên (18–20px font-semibold), Mã bệnh nhân (font-mono), cùng Badge trạng thái khám hiện tại (`● Chưa khám`, `● Đang khám`, `● Đã khám`, `● Đã hủy`).
+  - Lưới thông tin 2 cột rõ ràng:
+    - `NGÀY SINH` | `SỐ ĐIỆN THOẠI`
+    - `NGÀY KHÁM` | `THÔNG TIN LỊCH HẸN` (`✓ Có` hoặc `Chưa có`)
+  - **Logic tự động suy diễn thông minh**:
+    - Nếu bệnh nhân có lịch hẹn hoặc lịch tái khám: Ngày khám là ngày đặt hẹn, Thông tin lịch hẹn: *Có*, Trạng thái khám: *Chưa khám*.
+    - Nếu không có lịch hẹn trước: Ngày khám là ngày khám gần nhất, Thông tin lịch hẹn: *Chưa có*, Trạng thái khám: *Đã khám*.
+  - Tuyệt đối không thêm các thông số thống kê dư thừa, giữ hồ sơ sạch sẽ và bảo mật.
+- **Card Lịch sử khám bệnh (Medical Timeline - Chiếm ~53% Desktop)**:
+  - Header: Icon `ClipboardList` + Tiêu đề *"Lịch sử khám bệnh"*, không tạo nút bấm giả.
+  - **Vertical Medical Timeline**:
+    - Mỗi mốc khám hiển thị trên một hàng ngang: `● [Ngày khám]  [Loại khám]  [● Đã khám]`.
+    - Dot tròn xanh primary `#2563EB` với hiệu ứng hào quang nhẹ.
+    - Đường line nối dọc `#BFDBFE` liền mạch giữa các mốc khám, tự động dừng ở mốc cuối cùng.
+    - Đã gỡ bỏ hoàn toàn nút *"Xóa"* lịch sử để đảm bảo tính nguyên vẹn của bệnh án y khoa.
+  - **Trạng thái rỗng (Empty State)**: Khi bệnh nhân chưa có tiền sử khám bệnh (như `BN000102`), hiển thị icon dịu mắt cùng dòng chữ *"Chưa có lịch sử khám bệnh"*, không vẽ line timeline rỗng.
 
-```bash
-pnpm install
-```
+### 4. Đặt / Hủy lịch khám (Appointment Booking)
+- **Form đăng ký khám bệnh**:
+  - Nhập thông tin: Họ và tên, Ngày sinh, Số điện thoại, Nhu cầu khám (12 chuyên khoa: Tim mạch, Hô hấp, Da liễu, Cơ xương khớp, Tai Mũi Họng, Sản - Phụ khoa, Nhi,...).
+  - Chọn ngày khám và Khung giờ khám (hệ 48 khung giờ 24h).
+  - Tự động hiển thị số chỗ trống theo thời gian thực (VD: `2/5 chỗ`). Các khung giờ đã đầy (`5/5`) sẽ tự động bị vô hiệu hóa để chống trùng lịch.
+- **Danh sách lịch hẹn hiện hành**: Hiển thị bảng theo dõi các lịch đã đăng ký kèm chức năng *"Hủy lịch"* nhanh chóng.
 
-Chạy môi trường phát triển:
+### 5. Nhắc lịch khám (Follow-up Reminders)
+- **Thiết lập lịch tái khám**: Tạo lịch nhắc hẹn cho bệnh nhân xuất viện hoặc cần tái kiểm tra theo Mã BN, Ngày hẹn, Giờ hẹn và Nội dung khám.
+- **Bảng danh sách lịch tái khám chuẩn hóa**:
+  - Cột 1: `MÃ BN` (font-mono xanh primary)
+  - Cột 2: `HỌ TÊN` (Tự động tra cứu họ tên bệnh nhân tương ứng từ danh mục)
+  - Cột 3: `NGÀY`
+  - Cột 4: `GIỜ`
+  - Cột 5: `NỘI DUNG`
+  - Cột 6: `TRẠNG THÁI` (Badge: *Sắp tới*, *Hoàn thành*, *Đã hủy*)
 
-```bash
-pnpm dev
-```
+---
 
-Mở [http://localhost:3000](http://localhost:3000) trong trình duyệt.
+## 💻 Công nghệ sử dụng
 
-Tạo bản build production:
+- **Framework**: [Next.js 16](https://nextjs.org/) (App Router, Turbopack)
+- **Thư viện UI**: [React 19](https://react.dev/), [TypeScript](https://www.typescriptlang.org/)
+- **Styling**: [Tailwind CSS 4](https://tailwindcss.com/)
+- **Icons**: [Lucide React](https://lucide.dev/) (Bộ icon chuẩn hóa đồng bộ)
+- **Quản lý chủ đề**: [`next-themes`](https://github.com/pacocoursey/next-themes) (Hỗ trợ Dark/Light mode không giật flash)
+- **Package Manager**: [pnpm](https://pnpm.io/)
 
-```bash
-pnpm build
-```
+---
 
-Chạy bản build production sau khi build:
+## 🚀 Cài đặt và khởi chạy
 
-```bash
-pnpm start
-```
+### Yêu cầu hệ thống
+- **Node.js**: Phiên bản 18 trở lên (khuyến nghị phiên bản LTS 20+)
+- **pnpm**: Phiên bản 9.x hoặc 10.x
 
-## Cấu trúc thư mục
+### Các bước cài đặt
 
-```text
-app/
-  page.tsx                 Màn hình dashboard và logic tương tác chính
-  layout.tsx               Layout gốc, metadata, font, theme provider
-  globals.css              Tailwind, biến màu và kiểu dùng chung
-components/
-  clinic/                  Các component tab tái sử dụng cho nghiệp vụ phòng khám
-  ui/                      Các component giao diện cơ bản
-  mode-toggle.tsx          Nút đổi giao diện sáng/tối
-  theme-provider.tsx       Cấu hình next-themes
-lib/
-  clinic-types.ts          Kiểu dữ liệu bệnh nhân, hàng đợi, lịch khám
-  clinic-mock-data.ts      Danh sách dữ liệu mẫu khởi tạo
-  utils.ts                 Hàm tiện ích class CSS
-public/                    Tài nguyên tĩnh
-```
+1. **Cài đặt các gói phụ thuộc:**
+   ```bash
+   pnpm install
+   ```
 
-Trang hiện tại được kết xuất tại route `/`. Các nghiệp vụ chính và trạng thái UI đang được điều phối trong `app/page.tsx`; các file trong `components/clinic/` cung cấp những component tab độc lập, không phải toàn bộ đều được trang chính sử dụng.
+2. **Khởi chạy máy chủ phát triển (Development Server):**
+   ```bash
+   pnpm dev
+   ```
+   Truy cập vào ứng dụng tại: [http://localhost:3000](http://localhost:3000)
 
-## Dữ liệu và giới hạn hiện tại
+3. **Kiểm tra và xây dựng bản Production (Build):**
+   ```bash
+   pnpm build
+   ```
 
-- Dữ liệu bệnh nhân, hàng đợi, lịch sử, khung giờ và lịch tái khám ban đầu nằm trong `lib/clinic-mock-data.ts`; lịch hẹn mẫu được khởi tạo trong `app/page.tsx`.
-- Các thao tác thêm, hủy, gọi khám hoặc xóa lịch sử chỉ cập nhật React state phía trình duyệt. Tải lại trang sẽ khôi phục dữ liệu ban đầu.
-- Dự án hiện chưa kết nối backend/API, cơ sở dữ liệu, đăng nhập, phân quyền hoặc dịch vụ gửi thông báo. Mục nhắc lịch chỉ quản lý danh sách trong giao diện, không tự gửi thông báo cho bệnh nhân.
-- Đây là UI/demo với dữ liệu giả lập, chưa phù hợp để xử lý hồ sơ y tế hoặc thông tin cá nhân thực tế.
+4. **Khởi chạy ứng dụng Production:**
+   ```bash
+   pnpm start
+   ```
 
-## Scripts
+---
 
-| Lệnh | Mô tả |
-| --- | --- |
-| `pnpm dev` | Chạy server phát triển Next.js |
-| `pnpm build` | Tạo bản build production |
-| `pnpm start` | Chạy server production sau khi build |
+## 🔒 Dữ liệu & Giới hạn hiện tại
+
+- **Môi trường Client State**: Ứng dụng hiện lưu trữ và điều phối trạng thái thông qua React State trong bộ nhớ trình duyệt (`useState`, `useMemo`). Việc làm mới trang (`F5`) sẽ khôi phục lại dữ liệu mẫu ban đầu từ `lib/clinic-mock-data.ts`.
+- **Chưa tích hợp Database/Backend thực tế**: Dự án phục vụ mục đích xây dựng và mô phỏng giao diện chuẩn cho hệ thống quản lý phòng khám (đồ án / prototype), chưa kết nối với cơ sở dữ liệu quan hệ (PostgreSQL/MySQL) hay dịch vụ xác thực người dùng (Auth) thực thụ.
+- **Bảo toàn dữ liệu y khoa**: Chức năng xóa bản ghi lịch sử khám bệnh đã bị vô hiệu hóa trên giao diện để tuân thủ nguyên tắc lưu trữ hồ sơ bệnh án không thể chỉnh sửa.

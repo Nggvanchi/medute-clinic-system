@@ -15,6 +15,7 @@ import {
   History,
   X,
   User,
+  Users,
   Cake,
   PhoneCall,
   Check,
@@ -24,7 +25,9 @@ import {
   ClipboardList,
   Filter,
   ArrowUpDown,
-  ListOrdered
+  ListOrdered,
+  LogOut,
+  Menu,
 } from "lucide-react"
 import { ModeToggle } from "@/components/mode-toggle"
 import {
@@ -38,7 +41,7 @@ import type { HangDoiItem, KhungGioKhamItem, LichHenItem, LichTaiKhamItem, LichS
 
 // Các chức năng chính của hệ thống
 const VIEWS = [
-  { id: "hang-doi", label: "Hàng đợi", icon: UsersIcon },
+  { id: "hang-doi", label: "Hàng đợi", icon: Users },
   { id: "truy-xuat-thoi-gian", label: "Truy xuất theo thời gian", icon: Clock },
   { id: "tra-cuu", label: "Tra cứu & Lịch sử", icon: Search },
   { id: "dat-lich", label: "Đặt / Hủy lịch", icon: CalendarPlus },
@@ -46,26 +49,6 @@ const VIEWS = [
 ] as const
 
 type ViewId = (typeof VIEWS)[number]["id"]
-
-function UsersIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  )
-}
 
 const NHU_CAU_KHAM_OPTIONS = [
   "Khám tổng quát",
@@ -113,6 +96,8 @@ export default function PatientManagementApp() {
   // Navigation State
   const [currentView, setCurrentView] = useState<ViewId>("hang-doi")
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Global Search State
@@ -426,32 +411,108 @@ export default function PatientManagementApp() {
     if (!searchedPatient) return []
     return lichSuList
       .filter((ls) => ls.maBN === searchedPatient.maBN)
-      .sort((a, b) => (a.ngayKham < b.ngayKham ? 1 : -1))
+      .sort((a, b) => {
+        const parseDate = (dStr: string) => {
+          const parts = dStr.split("/")
+          if (parts.length === 3) {
+            return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0])).getTime()
+          }
+          return 0
+        }
+        return parseDate(b.ngayKham) - parseDate(a.ngayKham)
+      })
   }, [searchedPatient, lichSuList])
+
+  // Trạng thái khám hiện tại, lịch hẹn và ngày khám của bệnh nhân đang tra cứu
+  const patientAppointmentStatus = useMemo(() => {
+    if (!searchedPatient) return null
+
+    // 1. Kiểm tra xem có lịch đặt khám còn hiệu lực (Đã đặt)
+    const booking = lichHenList.find(
+      (lh) =>
+        (lh.sdt === searchedPatient.sdt ||
+          lh.hoTen.trim().toLowerCase() === searchedPatient.hoTen.trim().toLowerCase()) &&
+        lh.trangThai === "Đã đặt"
+    )
+
+    // 2. Kiểm tra xem có lịch tái khám sắp tới (Sắp tới)
+    const followUp = lichTaiKhamList.find(
+      (tk) =>
+        tk.maBN.toUpperCase() === searchedPatient.maBN.toUpperCase() &&
+        tk.trangThai === "Sắp tới"
+    )
+
+    const coLichHen = Boolean(booking || followUp)
+
+    if (coLichHen) {
+      // Có đặt lịch khám hoặc có lịch tái khám:
+      // Ngày khám là ngày đặt lịch / ngày hẹn, thông tin lịch hẹn: Có, trạng thái khám: Chưa khám
+      return {
+        coLichHen: true,
+        ngayKham: booking?.ngay || followUp?.ngay || "27/09/2026",
+        thongTinLichHen: "Có",
+        trangThaiKham: "Chưa khám",
+      }
+    } else {
+      // Không có đặt trước lịch hẹn khám:
+      // Ngày khám là ngày đã khám gần nhất, thông tin lịch hẹn: Chưa có, trạng thái khám: Đã khám
+      const ngayKhamGanNhat = patientHistory.length > 0 ? patientHistory[0].ngayKham : "Chưa có lượt khám"
+      return {
+        coLichHen: false,
+        ngayKham: ngayKhamGanNhat,
+        thongTinLichHen: "Chưa có",
+        trangThaiKham: "Đã khám",
+      }
+    }
+  }, [searchedPatient, lichHenList, lichTaiKhamList, patientHistory])
 
   const activeViewObj = VIEWS.find((v) => v.id === currentView) || VIEWS[0]
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-gray-50 dark:bg-zinc-950 text-gray-900 dark:text-zinc-100 font-sans antialiased">
+    <div className="flex h-screen w-full overflow-hidden bg-[#F8FAFC] dark:bg-zinc-950 text-[#0F172A] dark:text-zinc-100 font-sans antialiased">
+      {/* Mobile/Tablet Overlay Backdrop */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-40 lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* ================= LEFT SIDEBAR (TASKBAR) ================= */}
-      <aside className="w-[280px] bg-[#0f172a] border-r border-slate-800 flex flex-col shrink-0 h-full select-none">
+      <aside
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-[260px] bg-[#0f172a] border-r border-white/[0.08] flex flex-col shrink-0 h-full select-none transition-transform duration-300 ease-in-out ${
+          isMobileSidebarOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full lg:translate-x-0"
+        }`}
+      >
         {/* Logo Area */}
-        <div className="h-[84px] flex items-center gap-3.5 px-4.5 border-b border-slate-800 shrink-0">
-          <div className="size-12 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/25 shrink-0">
-            <ClipboardList className="size-6.5 stroke-[2.2]" />
+        <div className="h-[76px] flex items-center justify-between px-4 border-b border-white/[0.08] shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="size-10 rounded-xl bg-[#2563eb] flex items-center justify-center text-white shadow-sm shadow-blue-500/20 shrink-0">
+              <Stethoscope className="size-5 stroke-[2.2]" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <h1 className="text-[16px] font-bold text-white leading-tight truncate">
+                ClinicCare
+              </h1>
+              <p className="text-[11px] text-slate-400 leading-tight mt-0.5 truncate">
+                Quản lý phòng khám
+              </p>
+            </div>
           </div>
-          <div className="flex flex-col min-w-0">
-            <h1 className="text-sm font-bold text-white leading-tight">
-              Quản lý Hồ Sơ Bệnh Nhân
-            </h1>
-            <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
-              Hệ thống hàng đợi &amp; lịch khám phòng khám
-            </p>
-          </div>
+          {/* Close button for Tablet/Mobile */}
+          <button
+            type="button"
+            onClick={() => setIsMobileSidebarOpen(false)}
+            className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer shrink-0"
+            aria-label="Đóng menu"
+          >
+            <X className="size-5" />
+          </button>
         </div>
 
-        {/* Menu Items */}
-        <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+        {/* Menu Items (Spacing: pt-7 = 28px from logo, px-4 = 16px padding, space-y-1.5 = 6px item spacing) */}
+        <nav className="flex-1 px-4 pt-7 pb-4 space-y-1.5 overflow-y-auto">
           {VIEWS.map((view) => {
             const Icon = view.icon
             const isActive = currentView === view.id
@@ -459,41 +520,74 @@ export default function PatientManagementApp() {
               <button
                 key={view.id}
                 type="button"
-                onClick={() => setCurrentView(view.id)}
-                className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition-all cursor-pointer group ${
+                onClick={() => {
+                  setCurrentView(view.id)
+                  setIsMobileSidebarOpen(false)
+                }}
+                className={`relative w-full h-[44px] flex items-center gap-3 px-3.5 rounded-xl text-sm transition-all duration-200 ease-in-out cursor-pointer group ${
                   isActive
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
+                    ? "bg-blue-600/15 text-blue-400 border border-blue-500/20 font-semibold"
                     : "text-slate-300 hover:bg-slate-800/60 hover:text-white font-medium"
                 }`}
               >
+                {/* Indicator bar nhỏ ở cạnh trái khi active */}
+                {isActive && (
+                  <span
+                    className="absolute left-1 top-2.5 bottom-2.5 w-[3px] bg-blue-500 rounded-full"
+                    aria-hidden="true"
+                  />
+                )}
                 <Icon
-                  className={`size-5 shrink-0 transition-colors ${
+                  className={`size-[18px] shrink-0 transition-colors duration-200 ${
                     isActive
-                      ? "text-white"
+                      ? "text-blue-400"
                       : "text-slate-400 group-hover:text-white"
                   }`}
                 />
-                <span>{view.label}</span>
+                <span className="truncate">{view.label}</span>
               </button>
             )
           })}
         </nav>
+
+        {/* Taskbar Footer: Logout Button (Placed near the bottom, compact, subtle red styling) */}
+        <div className="mt-auto px-4 py-3.5 border-t border-white/[0.08] shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setIsLogoutModalOpen(true)
+              setIsMobileSidebarOpen(false)
+            }}
+            className="w-full h-[42px] flex items-center gap-3 px-3.5 rounded-xl text-sm font-medium text-red-400/90 hover:text-red-300 hover:bg-red-500/[0.08] active:bg-red-500/15 border border-white/[0.08] hover:border-red-500/25 transition-all duration-200 ease-in-out cursor-pointer group"
+          >
+            <LogOut className="size-[18px] shrink-0 transition-transform duration-200 group-hover:-translate-x-0.5" />
+            <span className="truncate">Đăng xuất</span>
+          </button>
+        </div>
       </aside>
 
       {/* ================= RIGHT AREA (MAIN CONTENT COLUMN) ================= */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="h-20 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border-b border-gray-200/80 dark:border-zinc-800 flex items-center justify-between px-6 sm:px-8 shrink-0 z-10 gap-4">
-          {/* Global Quick Search Input */}
-          <div className="flex-1 max-w-md">
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4.5 text-gray-400 dark:text-zinc-500 pointer-events-none" />
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* Topbar */}
+        <header className="h-16 sm:h-[68px] bg-white dark:bg-zinc-900 border-b border-[#E2E8F0] dark:border-zinc-800 flex items-center justify-between px-4 sm:px-8 shrink-0 z-10 gap-4">
+          {/* Mobile/Tablet Menu Button + Global Quick Search */}
+          <div className="flex items-center gap-2 flex-1 max-w-[500px]">
+            <button
+              type="button"
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-xl text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+              aria-label="Mở menu điều hướng"
+            >
+              <Menu className="size-5" />
+            </button>
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#94A3B8] dark:text-zinc-500 pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm nhanh bệnh nhân (Tên, Mã BN, SĐT)..."
-                className="w-full pl-10 pr-4 py-2 text-sm bg-gray-50 dark:bg-zinc-800/80 border border-gray-200 dark:border-zinc-700/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600 dark:focus:border-blue-500 transition-all placeholder:text-gray-400 dark:placeholder:text-zinc-500 text-gray-900 dark:text-zinc-100"
+                placeholder="Tìm nhanh bệnh nhân..."
+                className="w-full h-11 pl-10 pr-9 text-sm bg-white dark:bg-zinc-800 border border-[#E2E8F0] dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-[#2563EB] dark:focus:border-blue-500 transition-all placeholder:text-[#94A3B8] dark:placeholder:text-zinc-500 text-[#0F172A] dark:text-zinc-100"
               />
               {searchQuery && (
                 <button
@@ -507,14 +601,30 @@ export default function PatientManagementApp() {
             </div>
           </div>
 
-          {/* Right: Light/Dark Mode Toggle */}
+          {/* Right Topbar Icons: Notifications, Dark mode, User Avatar */}
           <div className="flex items-center gap-3 shrink-0">
+            <button
+              type="button"
+              className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              title="Thông báo"
+            >
+              <Bell className="size-4.5" />
+            </button>
             <ModeToggle />
+            <div className="flex items-center gap-2.5 pl-3 border-l border-slate-200 dark:border-zinc-800">
+              <div className="size-8.5 rounded-full bg-blue-50 dark:bg-blue-950/80 text-[#2563EB] dark:text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">
+                <User className="size-4" />
+              </div>
+              <div className="hidden sm:flex flex-col text-left">
+                <span className="text-xs font-semibold text-[#0F172A] dark:text-zinc-100 leading-none">Bác sĩ trực</span>
+                <span className="text-[10px] text-slate-500 dark:text-zinc-400 leading-none mt-1">Phòng khám</span>
+              </div>
+            </div>
           </div>
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-6 sm:p-8">
+        <main className="flex-1 overflow-y-auto p-6 sm:p-8 bg-[#F8FAFC] dark:bg-zinc-950">
         
         {/* ================= VIEW 1: HÀNG ĐỢI (PATIENT QUEUE) ================= */}
         {currentView === "hang-doi" && (
@@ -524,7 +634,7 @@ export default function PatientManagementApp() {
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-2.5">
                   <div className="size-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                    <UsersIcon className="size-5" />
+                    <Users className="size-5" />
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-gray-900 dark:text-white">
@@ -919,10 +1029,10 @@ export default function PatientManagementApp() {
         {currentView === "tra-cuu" && (
           <div className="flex flex-col gap-6">
             {/* Search Box Card */}
-            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xs border border-gray-200/80 dark:border-zinc-800 p-5 sm:p-6">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xs border border-[#E2E8F0] dark:border-zinc-800 p-6">
               <div className="flex items-center gap-2.5 mb-4">
-                <Search className="size-5 text-blue-600 dark:text-blue-400 stroke-[2.2]" />
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                <Search className="size-5 text-[#2563eb] dark:text-blue-400 stroke-[2.2]" />
+                <h2 className="text-[18px] font-semibold text-[#0F172A] dark:text-white">
                   Tra cứu hồ sơ bệnh nhân
                 </h2>
               </div>
@@ -934,32 +1044,32 @@ export default function PatientManagementApp() {
                 }}
                 className="max-w-xl"
               >
-                <label htmlFor="search-mabn-input" className="block text-xs font-medium text-gray-700 dark:text-zinc-300 mb-1.5">
-                  Mã bệnh nhân
-                </label>
-                <div className="flex items-center gap-2.5">
-                  <input
-                    id="search-mabn-input"
-                    type="text"
-                    value={searchMaBN}
-                    onChange={(e) => setSearchMaBN(e.target.value)}
-                    placeholder="VD: BN100235"
-                    className="flex-1 px-3.5 py-2 text-sm bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600"
-                  />
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#94A3B8] dark:text-zinc-500 pointer-events-none" />
+                    <input
+                      id="search-mabn-input"
+                      type="text"
+                      value={searchMaBN}
+                      onChange={(e) => setSearchMaBN(e.target.value)}
+                      placeholder="Nhập mã bệnh nhân, ví dụ BN100235..."
+                      className="w-full h-11 pl-10 pr-4 text-sm bg-white dark:bg-zinc-800 border border-[#E2E8F0] dark:border-zinc-700 rounded-xl text-[#0F172A] dark:text-zinc-100 placeholder:text-[#94A3B8] dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-[#2563EB] dark:focus:border-blue-500 transition-all font-mono"
+                    />
+                  </div>
                   <button
                     type="submit"
-                    className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer shrink-0"
+                    className="h-11 px-6 inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-[#2563eb] hover:bg-[#1d4ed8] active:bg-[#1e40af] rounded-xl shadow-xs transition-colors cursor-pointer shrink-0"
                   >
                     <Search className="size-4" />
-                    Tìm kiếm
+                    <span>Tìm kiếm</span>
                   </button>
                 </div>
               </form>
 
               {/* Quick sample chips */}
-              <div className="mt-3 flex items-center gap-2 text-xs text-gray-500 dark:text-zinc-400">
-                <span>Gợi ý nhanh:</span>
-                {["BN100235", "BN000101", "BN000103"].map((code) => (
+              <div className="mt-4 flex items-center gap-2 text-xs sm:text-[13px] text-[#64748B] dark:text-zinc-400 flex-wrap">
+                <span className="font-medium">Gợi ý nhanh:</span>
+                {["BN100235", "BN000107", "BN000101", "BN000103"].map((code) => (
                   <button
                     key={code}
                     type="button"
@@ -967,7 +1077,7 @@ export default function PatientManagementApp() {
                       setSearchMaBN(code)
                       setCurrentPatientId(code)
                     }}
-                    className="px-2 py-0.5 rounded bg-gray-100 dark:bg-zinc-800 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-zinc-700 text-gray-600 dark:text-zinc-300 font-mono transition-colors"
+                    className="h-7 sm:h-[30px] px-3 inline-flex items-center justify-center rounded-lg bg-[#EFF6FF] dark:bg-zinc-800 hover:bg-blue-100/80 dark:hover:bg-zinc-700 text-[#2563eb] dark:text-blue-400 border border-blue-200/60 dark:border-zinc-700 text-xs font-mono font-medium transition-colors cursor-pointer"
                   >
                     {code}
                   </button>
@@ -977,76 +1087,207 @@ export default function PatientManagementApp() {
 
             {/* Results Details */}
             {currentPatientId && !searchedPatient && (
-              <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 rounded-xl p-4 text-red-600 dark:text-red-400 text-sm">
-                Không tìm thấy hồ sơ bệnh nhân với mã <strong>{currentPatientId}</strong>.
+              <div className="bg-[#FEF2F2] dark:bg-rose-950/30 border border-[#FECACA] dark:border-rose-900/40 rounded-2xl p-5 text-[#B91C1C] dark:text-rose-300 text-sm flex items-center gap-3">
+                <AlertTriangle className="size-5 shrink-0 text-[#EF4444]" />
+                <span>
+                  Không tìm thấy hồ sơ bệnh nhân với mã <strong>{currentPatientId}</strong>. Vui lòng kiểm tra lại hoặc chọn mã trong phần gợi ý nhanh.
+                </span>
               </div>
             )}
 
             {searchedPatient && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Patient Profile */}
-                <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xs border border-gray-200/80 dark:border-zinc-800 p-5 sm:p-6 md:col-span-1">
-                  <div className="flex items-center gap-2 pb-4 border-b border-gray-100 dark:border-zinc-800 mb-4">
-                    <User className="size-4.5 text-blue-600" />
-                    <h3 className="font-bold text-gray-900 dark:text-white">Thông tin bệnh nhân</h3>
-                  </div>
+              <div className="flex flex-col lg:flex-row gap-5 items-stretch">
+                {/* Patient Profile Card - Redesigned Medical Patient Profile (~47% width on desktop) */}
+                <div className="w-full lg:w-[47%] bg-white dark:bg-zinc-900 rounded-2xl border border-[#E2E8F0] dark:border-zinc-800 p-6 shadow-[0_1px_3px_rgba(15,23,42,0.04)] flex flex-col justify-between">
+                  <div>
+                    {/* 1. HEADER: Left (Avatar + HoTen + MaBN), Right (Status Badge) */}
+                    <div className="flex items-center justify-between gap-3 flex-wrap pb-4 sm:pb-5 border-b border-[#E2E8F0] dark:border-zinc-800 mb-5 sm:mb-6">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* Avatar User Icon */}
+                        <div className="size-11 sm:size-12 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2563eb] dark:text-blue-400 flex items-center justify-center shrink-0">
+                          <User className="size-5 sm:size-6 stroke-[2]" />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-[18px] sm:text-[20px] font-semibold text-[#0F172A] dark:text-white leading-tight">
+                            {searchedPatient.hoTen}
+                          </h3>
+                          <p className="text-[13px] sm:text-sm font-medium text-[#2563EB] dark:text-blue-400 font-mono mt-0.5">
+                            {searchedPatient.maBN}
+                          </p>
+                        </div>
+                      </div>
 
-                  <div className="space-y-3.5 text-sm">
-                    <div>
-                      <span className="text-xs text-gray-500 dark:text-zinc-400 block">Mã bệnh nhân</span>
-                      <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{searchedPatient.maBN}</span>
+                      {/* Status Badge (Derived dynamically from system data) */}
+                      {(() => {
+                        const status = patientAppointmentStatus?.trangThaiKham || "Chưa khám"
+                        let badgeClasses = "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60"
+                        let dotColor = "bg-amber-500"
+
+                        if (status === "Đang khám") {
+                          badgeClasses = "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/60"
+                          dotColor = "bg-blue-500"
+                        } else if (status === "Đã khám") {
+                          badgeClasses = "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
+                          dotColor = "bg-emerald-500"
+                        } else if (status === "Đã hủy") {
+                          badgeClasses = "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60"
+                          dotColor = "bg-rose-500"
+                        }
+
+                        return (
+                          <div className="shrink-0">
+                            <span
+                              className={`h-7 sm:h-[30px] inline-flex items-center gap-1.5 px-3 rounded-full text-xs font-medium border ${badgeClasses}`}
+                            >
+                              <span className={`size-1.5 rounded-full ${dotColor}`} />
+                              {status}
+                            </span>
+                          </div>
+                        )
+                      })()}
                     </div>
-                    <div>
-                      <span className="text-xs text-gray-500 dark:text-zinc-400 block">Họ và tên</span>
-                      <span className="font-semibold text-gray-900 dark:text-white">{searchedPatient.hoTen}</span>
-                    </div>
-                    <div>
-                      <span className="text-xs text-gray-500 dark:text-zinc-400 block">Ngày sinh</span>
-                      <span className="text-gray-700 dark:text-zinc-300">{searchedPatient.ngaySinh}</span>
-                    </div>
-                    <div>
-                      <span className="text-xs text-gray-500 dark:text-zinc-400 block">Số điện thoại</span>
-                      <span className="font-mono text-gray-700 dark:text-zinc-300">{searchedPatient.sdt}</span>
+
+                    {/* 2. THÔNG TIN BỆNH NHÂN: Grid 2 cột rõ ràng */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-8 gap-y-5 sm:gap-y-6">
+                      {/* Cột 1: Ngày sinh */}
+                      <div>
+                        <span className="text-[11px] sm:text-xs font-semibold text-[#64748B] dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                          <Calendar className="size-3.5 text-[#64748B] dark:text-zinc-400" />
+                          Ngày sinh
+                        </span>
+                        <span className="text-[14px] sm:text-[15px] font-semibold text-[#0F172A] dark:text-zinc-100 block">
+                          {searchedPatient.ngaySinh}
+                        </span>
+                      </div>
+
+                      {/* Cột 2: Số điện thoại */}
+                      <div>
+                        <span className="text-[11px] sm:text-xs font-semibold text-[#64748B] dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                          <Phone className="size-3.5 text-[#64748B] dark:text-zinc-400" />
+                          Số điện thoại
+                        </span>
+                        <span className="font-mono text-[14px] sm:text-[15px] font-semibold text-[#0F172A] dark:text-zinc-100 block">
+                          {searchedPatient.sdt}
+                        </span>
+                      </div>
+
+                      {/* Cột 1: Ngày khám */}
+                      <div>
+                        <span className="text-[11px] sm:text-xs font-semibold text-[#64748B] dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                          <Calendar className="size-3.5 text-[#64748B] dark:text-zinc-400" />
+                          Ngày khám
+                        </span>
+                        <span className="font-mono text-[14px] sm:text-[15px] font-semibold text-[#0F172A] dark:text-zinc-100 block">
+                          {patientAppointmentStatus?.ngayKham || "—"}
+                        </span>
+                      </div>
+
+                      {/* Cột 2: Thông tin lịch hẹn */}
+                      <div>
+                        <span className="text-[11px] sm:text-xs font-semibold text-[#64748B] dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                          <CalendarCheck className="size-3.5 text-[#64748B] dark:text-zinc-400" />
+                          Thông tin lịch hẹn
+                        </span>
+                        <div className="text-[14px] sm:text-[15px] font-semibold text-[#0F172A] dark:text-zinc-100 flex items-center gap-1.5">
+                          {patientAppointmentStatus?.thongTinLichHen === "Có" ? (
+                            <>
+                              <Check className="size-4 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
+                              <span>Có</span>
+                            </>
+                          ) : (
+                            <span>Chưa có</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Patient Medical History */}
-                <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xs border border-gray-200/80 dark:border-zinc-800 p-5 sm:p-6 md:col-span-2">
-                  <div className="flex items-center gap-2 pb-4 border-b border-gray-100 dark:border-zinc-800 mb-4">
-                    <Stethoscope className="size-4.5 text-blue-600" />
-                    <h3 className="font-bold text-gray-900 dark:text-white">Lịch sử khám bệnh</h3>
+                {/* Patient Medical History - Modern Vertical Medical Timeline (~53% width on desktop) */}
+                <div className="w-full lg:w-[53%] bg-white dark:bg-zinc-900 rounded-2xl border border-[#E2E8F0] dark:border-zinc-800 p-6 shadow-[0_1px_3px_rgba(15,23,42,0.04)] flex flex-col">
+                  {/* 1. Header: Icon ClipboardList + Title "Lịch sử khám bệnh" (không kèm số phía sau) */}
+                  <div className="flex items-center justify-between gap-3 pb-4 sm:pb-5 border-b border-[#E2E8F0] dark:border-zinc-800 mb-5 sm:mb-6">
+                    <div className="flex items-center gap-2.5">
+                      <div className="size-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-[#2563eb] dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <ClipboardList className="size-4.5 stroke-[2.2]" />
+                      </div>
+                      <h3 className="text-[18px] font-semibold text-[#0F172A] dark:text-white">
+                        Lịch sử khám bệnh
+                      </h3>
+                    </div>
                   </div>
 
+                  {/* 2. Content: Empty State hoặc Vertical Timeline */}
                   {patientHistory.length === 0 ? (
-                    <p className="text-sm text-gray-400 py-6 text-center">Chưa có lịch sử khám bệnh nào.</p>
+                    <div className="py-12 flex flex-col items-center justify-center text-center">
+                      <div className="size-11 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500 flex items-center justify-center mb-3">
+                        <ClipboardList className="size-5 stroke-[1.8]" />
+                      </div>
+                      <p className="text-sm font-medium text-slate-600 dark:text-zinc-400">
+                        Chưa có lịch sử khám bệnh
+                      </p>
+                    </div>
                   ) : (
-                    <div className="space-y-4">
-                      {patientHistory.map((ls) => (
-                        <div
-                          key={ls.id}
-                          className="relative pl-5 border-l-2 border-blue-500/40 dark:border-blue-500/30 py-2 group"
-                        >
-                          <span className="absolute -left-1.5 top-3.5 size-2.5 rounded-full bg-blue-600 dark:bg-blue-400 ring-4 ring-white dark:ring-zinc-900" />
-                          <div className="flex items-center justify-between gap-2.5">
-                            <div className="flex items-center gap-2.5">
-                              <span className="text-xs font-semibold text-gray-900 dark:text-white">{ls.ngayKham}</span>
-                              <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300">
+                    <div className="relative pl-6 space-y-7 sm:space-y-8">
+                      {patientHistory.map((ls, idx) => {
+                        const isLast = idx === patientHistory.length - 1
+                        const status = (ls as any).trangThai || (ls.tinhTrang ? ls.tinhTrang : "Đã khám")
+                        const isCompleted = status === "Đã khám"
+                        const isCancelled = status === "Đã hủy"
+
+                        return (
+                          <div key={ls.id} className="relative group">
+                            {/* Đường line dọc kết nối giữa các mốc khám */}
+                            {!isLast && (
+                              <span
+                                className="absolute -left-[18px] top-3 bottom-[-28px] sm:bottom-[-32px] w-[2px] bg-[#BFDBFE] dark:bg-zinc-800"
+                                aria-hidden="true"
+                              />
+                            )}
+
+                            {/* Dot tròn màu xanh primary */}
+                            <span
+                              className="absolute -left-[23px] top-1 size-3 rounded-full bg-[#2563eb] ring-4 ring-blue-50 dark:ring-blue-950/80 transition-transform group-hover:scale-110"
+                              aria-hidden="true"
+                            />
+
+                            {/* Dòng mốc khám: Ngày khám | Loại khám | Đã khám trên cùng 1 hàng */}
+                            <div className="flex items-center gap-2.5 sm:gap-3.5 flex-wrap">
+                              {/* Ngày khám (Font 14-15px, Font weight 600) */}
+                              <span className="text-[14px] sm:text-[15px] font-semibold text-[#0F172A] dark:text-zinc-100 font-mono tracking-tight shrink-0">
+                                {ls.ngayKham}
+                              </span>
+
+                              {/* Loại khám (Chuyên khoa): Chip xanh rất nhạt, text primary */}
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs sm:text-[13px] font-medium bg-[#EFF6FF] dark:bg-blue-950/40 text-[#2563EB] dark:text-blue-300 border border-blue-200/60 dark:border-blue-900/50 shrink-0">
                                 {ls.chuyenKhoa}
                               </span>
+
+                              {/* Trạng thái khám: Badge Đã khám */}
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border shrink-0 ${
+                                  isCompleted
+                                    ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
+                                    : isCancelled
+                                    ? "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60"
+                                    : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60"
+                                }`}
+                              >
+                                <span
+                                  className={`size-1.5 rounded-full ${
+                                    isCompleted
+                                      ? "bg-emerald-500"
+                                      : isCancelled
+                                      ? "bg-rose-500"
+                                      : "bg-amber-500"
+                                  }`}
+                                />
+                                {status}
+                              </span>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteHistoryItem(ls.id)}
-                              className="opacity-0 group-hover:opacity-100 text-xs text-gray-400 hover:text-rose-600 transition-opacity flex items-center gap-1 cursor-pointer"
-                              title="Xóa lượt khám này"
-                            >
-                              <X className="size-3.5" />
-                              <span>Xóa</span>
-                            </button>
                           </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -1384,49 +1625,68 @@ export default function PatientManagementApp() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-gray-50/75 dark:bg-zinc-800/50 border-b border-gray-100 dark:border-zinc-800 text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wider">
-                      <th className="py-3.5 px-4 sm:px-6">Mã BN</th>
-                      <th className="py-3.5 px-4">Ngày</th>
-                      <th className="py-3.5 px-4">Giờ</th>
-                      <th className="py-3.5 px-4">Nội dung</th>
-                      <th className="py-3.5 px-4 sm:px-6">Trạng thái</th>
+                    <tr className="bg-gray-50/75 dark:bg-zinc-800/50 border-b border-gray-100 dark:border-zinc-800 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-zinc-500">
+                      <th className="py-3.5 px-4 sm:px-6">MÃ BN</th>
+                      <th className="py-3.5 px-4">HỌ TÊN</th>
+                      <th className="py-3.5 px-4">NGÀY</th>
+                      <th className="py-3.5 px-4">GIỜ</th>
+                      <th className="py-3.5 px-4">NỘI DUNG</th>
+                      <th className="py-3.5 px-4 sm:px-6">TRẠNG THÁI</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-zinc-800 text-sm">
                     {lichTaiKhamList.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-8 text-center text-gray-400">
+                        <td colSpan={6} className="py-8 text-center text-gray-400">
                           Chưa có lịch tái khám nào.
                         </td>
                       </tr>
                     ) : (
-                      lichTaiKhamList.map((item) => (
-                        <tr key={item.id} className="hover:bg-gray-50/80 dark:hover:bg-zinc-800/40 transition-colors">
-                          <td className="py-4 px-4 sm:px-6 font-mono text-sm font-medium text-gray-600 dark:text-zinc-300">
-                            {item.maBN}
-                          </td>
-                          <td className="py-4 px-4 text-gray-900 dark:text-white font-medium">
-                            {item.ngay}
-                          </td>
-                          <td className="py-4 px-4 text-gray-600 dark:text-zinc-300">
-                            {item.gio}
-                          </td>
-                          <td className="py-4 px-4 text-gray-800 dark:text-zinc-200">
-                            {item.noiDung}
-                          </td>
-                          <td className="py-4 px-4 sm:px-6">
-                            {item.trangThai === "Sắp tới" ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-zinc-300 border border-gray-200 dark:border-zinc-700">
-                                Sắp tới
+                      lichTaiKhamList.map((item) => {
+                        const bn = mockDanhSachBN.find(
+                          (b) => b.maBN.toUpperCase() === item.maBN.toUpperCase()
+                        )
+                        const hoTen = bn?.hoTen || "Bệnh nhân ẩn"
+
+                        return (
+                          <tr key={item.id} className="hover:bg-gray-50/60 dark:hover:bg-zinc-800/40 transition-colors">
+                            <td className="py-4 px-4 sm:px-6 font-mono text-sm font-normal text-gray-800 dark:text-zinc-200">
+                              {item.maBN}
+                            </td>
+                            <td className="py-4 px-4 text-sm font-bold text-gray-900 dark:text-white">
+                              {hoTen}
+                            </td>
+                            <td className="py-4 px-4">
+                              <span className="bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50 rounded-lg px-2.5 py-1 text-xs font-semibold inline-flex items-center gap-1.5 font-mono">
+                                <Calendar className="size-3.5" />
+                                {item.ngay}
                               </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-zinc-400 border border-gray-200 dark:border-zinc-700">
-                                Hoàn thành
+                            </td>
+                            <td className="py-4 px-4">
+                              <span className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900/50 rounded-lg px-2.5 py-1 text-xs font-semibold inline-flex items-center gap-1.5 font-mono">
+                                <Clock className="size-3.5" />
+                                {item.gio}
                               </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))
+                            </td>
+                            <td className="py-4 px-4 text-sm font-normal text-gray-700 dark:text-zinc-300">
+                              {item.noiDung}
+                            </td>
+                            <td className="py-4 px-4 sm:px-6">
+                              {item.trangThai === "Sắp tới" ? (
+                                <span className="border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50 rounded-full px-3 py-0.5 text-xs font-medium inline-flex items-center gap-1.5 border">
+                                  <AlertTriangle className="size-3.5 text-amber-600 dark:text-amber-400" />
+                                  Sắp tới
+                                </span>
+                              ) : (
+                                <span className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 rounded-full px-3 py-0.5 text-xs font-medium inline-flex items-center gap-1.5 border">
+                                  <Check className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                                  Hoàn thành
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })
                     )}
                   </tbody>
                 </table>
@@ -1437,6 +1697,53 @@ export default function PatientManagementApp() {
 
       </main>
       </div>
+
+      {/* ================= MODAL XÁC NHẬN ĐĂNG XUẤT ================= */}
+      {isLogoutModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-zinc-800 p-6 sm:p-7 space-y-5">
+            <div className="flex items-center gap-3.5">
+              <div className="size-12 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-200 dark:border-rose-900/50">
+                <LogOut className="size-6 stroke-[2.2]" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                  Xác nhận đăng xuất
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-zinc-400">
+                  Hệ thống Quản lý Bệnh nhân
+                </p>
+              </div>
+            </div>
+
+            <p className="text-sm text-gray-600 dark:text-zinc-300">
+              Bạn có chắc chắn muốn đăng xuất phiên làm việc hiện tại không? Mọi dữ liệu đã lưu trữ sẽ vẫn được bảo toàn.
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsLogoutModalOpen(false)}
+                className="px-4.5 py-2.5 rounded-xl text-sm font-semibold text-gray-700 dark:text-zinc-300 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLogoutModalOpen(false)
+                  setCurrentView("hang-doi")
+                  alert("Đã đăng xuất thành công khỏi hệ thống!")
+                }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer shadow-xs"
+              >
+                <LogOut className="size-4" />
+                Đăng xuất
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
