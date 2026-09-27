@@ -46,7 +46,7 @@ Phân hệ cốt lõi hiển thị hồ sơ chi tiết và lịch sử khám b�
 - **Card Tìm kiếm nhanh**:
   - Ô nhập mã bệnh nhân hoặc tên kèm nút tìm kiếm nổi bật.
   - Hàng gợi ý mã nhanh (Quick Suggestion Chips): `BN100235`, `BN000107`, `BN000101`, `BN000103` (click vào tự động điền và truy xuất tức thì).
-- **Card Thông tin bệnh nhân (Patient Profile - Chiếm ~47% Desktop)**:
+- **Card Thông tin bệnh nhân**:
   - Header: Avatar tròn người dùng, Họ và tên (18–20px font-semibold), Mã bệnh nhân (font-mono), cùng Badge trạng thái khám hiện tại (`● Chưa khám`, `● Đang khám`, `● Đã khám`, `● Đã hủy`).
   - Lưới thông tin 2 cột rõ ràng:
     - `NGÀY SINH` | `SỐ ĐIỆN THOẠI`
@@ -55,7 +55,7 @@ Phân hệ cốt lõi hiển thị hồ sơ chi tiết và lịch sử khám b�
     - Nếu bệnh nhân có lịch hẹn hoặc lịch tái khám: Ngày khám là ngày đặt hẹn, Thông tin lịch hẹn: *Có*, Trạng thái khám: *Chưa khám*.
     - Nếu không có lịch hẹn trước: Ngày khám là ngày khám gần nhất, Thông tin lịch hẹn: *Chưa có*, Trạng thái khám: *Đã khám*.
   - Tuyệt đối không thêm các thông số thống kê dư thừa, giữ hồ sơ sạch sẽ và bảo mật.
-- **Card Lịch sử khám bệnh (Medical Timeline - Chiếm ~53% Desktop)**:
+- **Card Lịch sử khám bệnh**:
   - Header: Icon `ClipboardList` + Tiêu đề *"Lịch sử khám bệnh"*, không tạo nút bấm giả.
   - **Vertical Medical Timeline**:
     - Mỗi mốc khám hiển thị trên một hàng ngang: `● [Ngày khám]  [Loại khám]  [● Đã khám]`.
