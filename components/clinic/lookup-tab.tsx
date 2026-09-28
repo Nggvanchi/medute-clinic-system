@@ -84,7 +84,7 @@ export function LookupTab({
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">Mã BN:</span>
-                  <span className="font-mono text-sm font-medium">{benhNhan.maBN}</span>
+                  <span className="font-medium text-sm">{benhNhan.maBN}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <User className="size-4 text-muted-foreground" />

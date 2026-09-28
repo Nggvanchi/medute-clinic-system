@@ -196,7 +196,7 @@ export function QueueTab({
                 {cheDoXem === "dang-ky" && (
                   <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
                 )}
-                <TableCell className="font-mono text-sm">{item.maBN}</TableCell>
+                <TableCell className="text-sm">{item.maBN}</TableCell>
                 <TableCell className={cn("font-medium", item.mucUuTien === 1 && "text-destructive")}>
                   {item.mucUuTien === 1 && <AlertTriangle className="mr-1.5 inline size-4" />}
                   {layTenBenhNhan(item.maBN)}

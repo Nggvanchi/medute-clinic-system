@@ -5,7 +5,7 @@ import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
 
 const roboto = Roboto({
-  weight: ['300', '400', '500', '700'],
+  weight: ['300', '400', '500', '600', '700'],
   subsets: ['latin', 'vietnamese'],
   variable: '--font-roboto',
   display: 'swap',

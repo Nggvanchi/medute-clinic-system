@@ -102,7 +102,7 @@ export function FollowUpTab({
               </div>
               <Field>
                 <FieldLabel htmlFor="noi-dung-tai-kham">Nội dung tái khám</FieldLabel>
-                <Select value={noiDung} onValueChange={setNoiDung}>
+                <Select value={noiDung} onValueChange={(val) => setNoiDung(val ?? "")}>
                   <SelectTrigger id="noi-dung-tai-kham" className="w-full">
                     <SelectValue placeholder="Chọn nội dung tái khám" />
                   </SelectTrigger>
@@ -154,7 +154,7 @@ export function FollowUpTab({
                   const gapHan = lt.trangThai === "Sắp tới" && conLai <= 3 && conLai >= 0
                   return (
                     <TableRow key={lt.id} className={cn(gapHan && "bg-amber-50 animate-pulse")}>
-                      <TableCell className="font-mono text-sm">{lt.maBN}</TableCell>
+                      <TableCell className="text-sm">{lt.maBN}</TableCell>
                       <TableCell className={cn(gapHan && "font-semibold text-amber-700")}>{lt.ngay}</TableCell>
                       <TableCell>{lt.gio}</TableCell>
                       <TableCell>{lt.noiDung}</TableCell>

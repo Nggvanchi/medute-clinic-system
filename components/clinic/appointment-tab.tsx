@@ -124,7 +124,7 @@ export function AppointmentTab({
               </Field>
               <Field>
                 <FieldLabel htmlFor="nhu-cau-kham">Nhu cầu khám</FieldLabel>
-                <Select value={nhuCauKham} onValueChange={setNhuCauKham}>
+                <Select value={nhuCauKham} onValueChange={(val) => setNhuCauKham(val ?? "")}>
                   <SelectTrigger id="nhu-cau-kham" className="w-full">
                     <SelectValue placeholder="Chọn nhu cầu khám" />
                   </SelectTrigger>
@@ -145,7 +145,7 @@ export function AppointmentTab({
               </Field>
               <Field>
                 <FieldLabel htmlFor="khung-gio">Khung giờ</FieldLabel>
-                <Select value={khungGioId} onValueChange={setKhungGioId}>
+                <Select value={khungGioId} onValueChange={(val) => setKhungGioId(val ?? "")}>
                   <SelectTrigger id="khung-gio" className="w-full">
                     <SelectValue placeholder="Chọn khung giờ">
                       {(value: string) => {
@@ -212,7 +212,7 @@ export function AppointmentTab({
                     <TableRow key={lh.id}>
                       <TableCell className="font-medium">{lh.hoTen}</TableCell>
                       <TableCell>{lh.ngaySinh}</TableCell>
-                      <TableCell className="font-mono text-sm">{lh.sdt}</TableCell>
+                      <TableCell className="text-sm">{lh.sdt}</TableCell>
                       <TableCell>{lh.nhuCauKham}</TableCell>
                       <TableCell>{lh.ngay}</TableCell>
                       <TableCell>{khungGio?.gio ?? "—"}</TableCell>

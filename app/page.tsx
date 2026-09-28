@@ -85,6 +85,22 @@ function timeToMinutes(gio: string) {
   return h * 60 + m
 }
 
+// Chuyển YYYY-MM-DD sang DD/MM/YYYY
+function isoToDmy(iso: string): string {
+  if (!iso) return ""
+  const parts = iso.split("-")
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`
+  return iso
+}
+
+// Chuyển DD/MM/YYYY sang YYYY-MM-DD
+function dmyToIso(dmy: string): string {
+  if (!dmy) return ""
+  const parts = dmy.split("/")
+  if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`
+  return dmy
+}
+
 // Hệ giờ 0h đến 23h, mỗi ca cách nhau 30 phút (48 mốc thời gian)
 const TIME_SLOTS_24H = Array.from({ length: 48 }, (_, i) => {
   const h = Math.floor(i / 2)
@@ -106,8 +122,10 @@ export default function PatientManagementApp() {
   // View 1 (Hàng đợi) State: 2 phần: danh sách theo thứ tự đăng ký, danh sách theo mức ưu tiên
   const [hangDoi, setHangDoi] = useState<HangDoiItem[]>(mockHangDoi)
   const [queueMode, setQueueMode] = useState<"thu-tu-dang-ky" | "muc-uu-tien">("thu-tu-dang-ky")
+  const [queueDate, setQueueDate] = useState("2026-09-27")
 
   // Chức năng mới trên Taskbar: Truy xuất bệnh nhân theo khoảng thời gian
+  const [filterDate, setFilterDate] = useState("2026-09-27")
   const [filterTimeFrom, setFilterTimeFrom] = useState("08:00")
   const [filterTimeTo, setFilterTimeTo] = useState("09:30")
 
@@ -329,18 +347,32 @@ export default function PatientManagementApp() {
     setLichSuList((prev) => prev.filter((item) => item.id !== id))
   }
 
-  // Thống kê số lượng bệnh nhân theo mức ưu tiên
+  // Thống kê số lượng bệnh nhân theo mức ưu tiên theo ngày đã chọn
   const priorityCounts = useMemo(() => {
+    const queueForDate = queueDate
+      ? hangDoi.filter((item) => {
+          const dmy = isoToDmy(queueDate)
+          return (item.ngayHen || "27/09/2026") === dmy || item.ngayHen === queueDate
+        })
+      : hangDoi
     return {
-      1: hangDoi.filter((item) => item.mucUuTien === 1).length,
-      2: hangDoi.filter((item) => item.mucUuTien === 2).length,
-      3: hangDoi.filter((item) => item.mucUuTien === 3).length,
+      1: queueForDate.filter((item) => item.mucUuTien === 1).length,
+      2: queueForDate.filter((item) => item.mucUuTien === 2).length,
+      3: queueForDate.filter((item) => item.mucUuTien === 3).length,
     }
-  }, [hangDoi])
+  }, [hangDoi, queueDate])
 
   // Queue sorting & filtering: 2 phần - danh sách theo thứ tự đăng ký, danh sách theo mức ưu tiên
   const filteredQueue = useMemo(() => {
     let result = [...hangDoi]
+
+    // Lọc theo ngày khám nếu có
+    if (queueDate) {
+      const dmy = isoToDmy(queueDate)
+      result = result.filter(
+        (item) => (item.ngayHen || "27/09/2026") === dmy || item.ngayHen === queueDate
+      )
+    }
 
     // Lọc theo từ khóa tìm kiếm nhanh
     if (searchQuery.trim()) {
@@ -368,11 +400,19 @@ export default function PatientManagementApp() {
     }
 
     return result
-  }, [hangDoi, searchQuery, queueMode])
+  }, [hangDoi, queueDate, searchQuery, queueMode])
 
   // Lọc bệnh nhân theo khoảng thời gian (Binary Search View)
   const timeRangePatients = useMemo(() => {
     let result = [...hangDoi]
+
+    // Lọc theo ngày hẹn
+    if (filterDate) {
+      const dmy = isoToDmy(filterDate)
+      result = result.filter(
+        (item) => (item.ngayHen || "27/09/2026") === dmy || item.ngayHen === filterDate
+      )
+    }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim()
@@ -397,7 +437,7 @@ export default function PatientManagementApp() {
 
     result.sort((a, b) => timeToMinutes(a.gioHen) - timeToMinutes(b.gioHen))
     return result
-  }, [hangDoi, searchQuery, filterTimeFrom, filterTimeTo])
+  }, [hangDoi, filterDate, searchQuery, filterTimeFrom, filterTimeTo])
 
   // Lookup data resolution
   const searchedPatient = useMemo(() => {
@@ -520,6 +560,7 @@ export default function PatientManagementApp() {
               <button
                 key={view.id}
                 type="button"
+                data-view={view.id}
                 onClick={() => {
                   setCurrentView(view.id)
                   setIsMobileSidebarOpen(false)
@@ -630,7 +671,8 @@ export default function PatientManagementApp() {
         {currentView === "hang-doi" && (
           <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xs border border-gray-200/80 dark:border-zinc-800 overflow-hidden">
             {/* Header / Filter Toolbar */}
-            <div className="p-5 sm:p-6 border-b border-gray-100 dark:border-zinc-800/80 flex flex-col gap-5">
+            <div className="p-5 sm:p-6 border-b border-gray-100 dark:border-zinc-800/80 flex flex-col gap-4">
+              {/* Header Section */}
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-2.5">
                   <div className="size-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
@@ -645,61 +687,81 @@ export default function PatientManagementApp() {
                     </p>
                   </div>
                 </div>
+              </div>
 
-                {/* 2 Chức năng tra cứu: "Danh sách theo thứ tự đăng ký" & "Danh sách theo mức ưu tiên" */}
-                <div className="inline-flex p-1 bg-gray-100 dark:bg-zinc-800 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setQueueMode("thu-tu-dang-ky")}
-                    className={`inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer ${
-                      queueMode === "thu-tu-dang-ky"
-                        ? "bg-blue-600 text-white shadow-xs"
-                        : "text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white"
-                    }`}
-                  >
-                    <ListOrdered className="size-3.5" />
-                    Danh sách theo thứ tự đăng ký
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setQueueMode("muc-uu-tien")}
-                    className={`inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer ${
-                      queueMode === "muc-uu-tien"
-                        ? "bg-blue-600 text-white shadow-xs"
-                        : "text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white"
-                    }`}
-                  >
-                    <AlertTriangle className="size-3.5" />
-                    Danh sách theo mức ưu tiên
-                  </button>
+              {/* Dedicated Toolbar Row Under Header & Above Table */}
+              <div className="flex items-center justify-between flex-wrap gap-3 pt-3 border-t border-gray-100 dark:border-zinc-800/80">
+                {/* Left side: Date Filter */}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="queue-date" className="text-xs font-semibold text-gray-700 dark:text-zinc-300 whitespace-nowrap">
+                    Ngày khám:
+                  </label>
+                  <input
+                    id="queue-date"
+                    type="date"
+                    value={queueDate}
+                    onChange={(e) => setQueueDate(e.target.value)}
+                    className="h-9 px-3 text-sm bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl text-gray-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600 cursor-pointer shadow-2xs"
+                  />
+                  {queueDate !== "2026-09-27" && (
+                    <button
+                      type="button"
+                      onClick={() => setQueueDate("2026-09-27")}
+                      className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 underline cursor-pointer"
+                    >
+                      Hôm nay
+                    </button>
+                  )}
+                </div>
+
+                {/* Right side: 2 tab buttons and Total count badge */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="inline-flex p-1 bg-gray-100 dark:bg-zinc-800 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setQueueMode("thu-tu-dang-ky")}
+                      className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer ${
+                        queueMode === "thu-tu-dang-ky"
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white"
+                      }`}
+                    >
+                      <ListOrdered className="size-3.5" />
+                      Danh sách theo thứ tự đăng ký
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQueueMode("muc-uu-tien")}
+                      className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer ${
+                        queueMode === "muc-uu-tien"
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white"
+                      }`}
+                    >
+                      <AlertTriangle className="size-3.5" />
+                      Danh sách theo mức ưu tiên
+                    </button>
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-zinc-400 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-zinc-800/60 border border-gray-100 dark:border-zinc-700/60 whitespace-nowrap">
+                    Tổng cộng: <strong className="text-blue-600 dark:text-blue-400">{filteredQueue.length}</strong> bệnh nhân
+                  </div>
                 </div>
               </div>
 
-              {/* Sub-toolbar according to mode */}
-              {queueMode === "thu-tu-dang-ky" ? (
-                <div className="flex flex-wrap items-center justify-end gap-3 pt-1 border-t border-gray-100 dark:border-zinc-800/80">
-                  <div className="text-xs text-gray-500 dark:text-zinc-400">
-                    Tổng cộng: <strong className="text-blue-600 dark:text-blue-400">{filteredQueue.length}</strong> bệnh nhân
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-gray-100 dark:border-zinc-800/80">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-gray-500 dark:text-zinc-400">Phân luồng mức ưu tiên:</span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-900/50">
-                      <AlertTriangle className="size-3" />
-                      Cấp cứu (Mức 1): {priorityCounts[1]}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50">
-                      Ưu tiên cao (Mức 2): {priorityCounts[2]}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-zinc-300 border border-gray-200 dark:border-zinc-700">
-                      Bình thường (Mức 3): {priorityCounts[3]}
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-zinc-400">
-                    Tổng cộng: <strong className="text-blue-600 dark:text-blue-400">{filteredQueue.length}</strong> bệnh nhân
-                  </div>
+              {/* Priority Breakdown Bar when in "muc-uu-tien" mode */}
+              {queueMode === "muc-uu-tien" && (
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-dashed border-gray-100 dark:border-zinc-800/80">
+                  <span className="text-xs text-gray-500 dark:text-zinc-400">Phân luồng mức ưu tiên:</span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-900/50">
+                    <AlertTriangle className="size-3" />
+                    Cấp cứu (Mức 1): {priorityCounts[1]}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50">
+                    Ưu tiên cao (Mức 2): {priorityCounts[2]}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-zinc-300 border border-gray-200 dark:border-zinc-700">
+                    Bình thường (Mức 3): {priorityCounts[3]}
+                  </span>
                 </div>
               )}
             </div>
@@ -737,11 +799,11 @@ export default function PatientManagementApp() {
                           className="hover:bg-gray-50/80 dark:hover:bg-zinc-800/40 transition-colors"
                         >
                           {/* STT */}
-                          <td className="py-4 px-4 sm:px-6 font-mono text-xs font-bold text-gray-500 dark:text-zinc-400">
+                          <td className="py-4 px-4 sm:px-6 text-xs font-bold text-gray-500 dark:text-zinc-400">
                             {index + 1}
                           </td>
                           {/* Mã BN */}
-                          <td className="py-4 px-4 sm:px-6 font-mono text-xs sm:text-sm font-medium text-gray-600 dark:text-zinc-300">
+                          <td className="py-4 px-4 sm:px-6 text-xs sm:text-sm font-medium text-gray-600 dark:text-zinc-300">
                             {item.maBN}
                           </td>
 
@@ -760,7 +822,7 @@ export default function PatientManagementApp() {
                           </td>
 
                           {/* Giờ hẹn */}
-                          <td className="py-4 px-4 text-gray-600 dark:text-zinc-300 font-medium">
+                          <td className="py-4 px-4 font-semibold text-gray-900 dark:text-zinc-100">
                             {item.gioHen}
                           </td>
 
@@ -835,7 +897,7 @@ export default function PatientManagementApp() {
           <div className="flex flex-col gap-6">
             {/* Filter Control Card */}
             <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xs border border-gray-200/80 dark:border-zinc-800 p-5 sm:p-6">
-              <div className="flex items-center justify-between flex-wrap gap-4 mb-5">
+              <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
                 <div className="flex items-center gap-2.5">
                   <div className="size-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
                     <Clock className="size-5 stroke-[2.2]" />
@@ -844,6 +906,9 @@ export default function PatientManagementApp() {
                     <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                       Truy xuất bệnh nhân theo khoảng thời gian
                     </h2>
+                    <p className="text-xs text-gray-500 dark:text-zinc-400">
+                      Tìm kiếm lịch hẹn theo khung giờ và ngày chỉ định
+                    </p>
                   </div>
                 </div>
 
@@ -852,86 +917,120 @@ export default function PatientManagementApp() {
                 </span>
               </div>
 
-              {/* Time inputs & Quick Presets */}
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div>
-                    <label htmlFor="range-from" className="block text-xs font-semibold text-gray-700 dark:text-zinc-300 mb-1.5">
-                      Giờ bắt đầu:
-                    </label>
-                    <select
-                      id="range-from"
-                      value={filterTimeFrom}
-                      onChange={(e) => setFilterTimeFrom(e.target.value)}
-                      className="w-full px-3.5 py-2 text-sm bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl text-gray-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600 cursor-pointer"
-                    >
-                      <option value="">-- Mốc bắt đầu (00:00) --</option>
-                      {TIME_SLOTS_24H.map((slot) => (
-                        <option key={`from-${slot}`} value={slot}>
-                          {slot} ({slot.replace(":", "h")})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="range-to" className="block text-xs font-semibold text-gray-700 dark:text-zinc-300 mb-1.5">
-                      Giờ kết thúc:
-                    </label>
-                    <select
-                      id="range-to"
-                      value={filterTimeTo}
-                      onChange={(e) => setFilterTimeTo(e.target.value)}
-                      className="w-full px-3.5 py-2 text-sm bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl text-gray-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600 cursor-pointer"
-                    >
-                      <option value="">-- Mốc kết thúc (23:30) --</option>
-                      {TIME_SLOTS_24H.map((slot) => (
-                        <option key={`to-${slot}`} value={slot}>
-                          {slot} ({slot.replace(":", "h")})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="sm:col-span-2 flex items-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFilterTimeFrom("07:30")
-                        setFilterTimeTo("11:30")
-                      }}
-                      className="flex-1 px-3 py-2 text-xs font-medium bg-gray-100 hover:bg-blue-50 hover:text-blue-700 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-300 rounded-xl transition-colors cursor-pointer"
-                    >
-                      Ca sáng (07:30 - 11:30)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFilterTimeFrom("13:00")
-                        setFilterTimeTo("17:00")
-                      }}
-                      className="flex-1 px-3 py-2 text-xs font-medium bg-gray-100 hover:bg-blue-50 hover:text-blue-700 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-300 rounded-xl transition-colors cursor-pointer"
-                    >
-                      Ca chiều (13:00 - 17:00)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFilterTimeFrom("")
-                        setFilterTimeTo("")
-                      }}
-                      className="px-3 py-2 text-xs font-medium text-gray-500 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 bg-gray-100 dark:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
-                    >
-                      Xóa lọc
-                    </button>
-                  </div>
+              {/* Single Horizontal Row Toolbar */}
+              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 pt-3 border-t border-gray-100 dark:border-zinc-800/80 font-sans">
+                {/* Ngày */}
+                <div className="flex items-center gap-1.5">
+                  <label htmlFor="range-date" className="text-sm font-medium text-gray-700 dark:text-zinc-300 whitespace-nowrap">
+                    Ngày:
+                  </label>
+                  <input
+                    id="range-date"
+                    type="date"
+                    value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    className="w-[126px] sm:w-[132px] h-9 px-2 text-sm font-normal text-gray-800 dark:text-zinc-200 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600 cursor-pointer shadow-2xs font-sans"
+                  />
+                </div>
+
+                {/* Giờ bắt đầu */}
+                <div className="flex items-center gap-1.5">
+                  <label htmlFor="range-from" className="text-sm font-medium text-gray-700 dark:text-zinc-300 whitespace-nowrap">
+                    Từ:
+                  </label>
+                  <select
+                    id="range-from"
+                    value={filterTimeFrom}
+                    onChange={(e) => setFilterTimeFrom(e.target.value)}
+                    className="w-[84px] sm:w-[90px] h-9 px-1.5 sm:px-2 text-sm font-normal text-gray-800 dark:text-zinc-200 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600 cursor-pointer shadow-2xs font-sans"
+                  >
+                    <option value="">00:00</option>
+                    {TIME_SLOTS_24H.map((slot) => (
+                      <option key={`from-${slot}`} value={slot}>
+                        {slot}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Giờ kết thúc */}
+                <div className="flex items-center gap-1.5">
+                  <label htmlFor="range-to" className="text-sm font-medium text-gray-700 dark:text-zinc-300 whitespace-nowrap">
+                    Đến:
+                  </label>
+                  <select
+                    id="range-to"
+                    value={filterTimeTo}
+                    onChange={(e) => setFilterTimeTo(e.target.value)}
+                    className="w-[84px] sm:w-[90px] h-9 px-1.5 sm:px-2 text-sm font-normal text-gray-800 dark:text-zinc-200 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600 cursor-pointer shadow-2xs font-sans"
+                  >
+                    <option value="">23:30</option>
+                    {TIME_SLOTS_24H.map((slot) => (
+                      <option key={`to-${slot}`} value={slot}>
+                        {slot}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Quick Presets & Clear button */}
+                <div className="flex items-center gap-1.5 flex-wrap ml-auto sm:ml-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterTimeFrom("07:30")
+                      setFilterTimeTo("11:30")
+                    }}
+                    className="h-9 px-2.5 text-sm font-medium text-gray-700 dark:text-zinc-300 bg-gray-100 hover:bg-blue-50 hover:text-blue-700 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap inline-flex items-center justify-center font-sans"
+                  >
+                    Ca sáng (07:30 - 11:30)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterTimeFrom("13:00")
+                      setFilterTimeTo("17:00")
+                    }}
+                    className="h-9 px-2.5 text-sm font-medium text-gray-700 dark:text-zinc-300 bg-gray-100 hover:bg-blue-50 hover:text-blue-700 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap inline-flex items-center justify-center font-sans"
+                  >
+                    Ca chiều (13:00 - 17:00)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterTimeFrom("17:30")
+                      setFilterTimeTo("20:30")
+                    }}
+                    className="h-9 px-2.5 text-sm font-medium text-gray-700 dark:text-zinc-300 bg-gray-100 hover:bg-blue-50 hover:text-blue-700 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap inline-flex items-center justify-center font-sans"
+                  >
+                    Ca tối (17:30 - 20:30)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterDate("2026-09-27")
+                      setFilterTimeFrom("")
+                      setFilterTimeTo("")
+                    }}
+                    className="h-9 px-2.5 text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-200 bg-gray-100 dark:bg-zinc-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap inline-flex items-center justify-center font-sans"
+                  >
+                    Xóa lọc
+                  </button>
                 </div>
               </div>
             </div>
 
             {/* Results Table */}
             <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xs border border-gray-200/80 dark:border-zinc-800 overflow-hidden">
-              <div className="p-5 border-b border-gray-100 dark:border-zinc-800 flex items-center justify-between">
-                <h3 className="font-bold text-gray-900 dark:text-white">
-                  Danh sách lịch hẹn trong khoảng {filterTimeFrom ? `${filterTimeFrom}` : "bắt đầu"} đến {filterTimeTo ? `${filterTimeTo}` : "kết thúc"}
+              <div className="p-5 border-b border-gray-100 dark:border-zinc-800 flex items-center justify-between flex-wrap gap-2">
+                <h3 className="font-bold text-gray-900 dark:text-white text-sm sm:text-base">
+                  {filterTimeFrom && filterTimeTo
+                    ? `Danh sách lịch hẹn trong ngày ${isoToDmy(filterDate)} khoảng ${filterTimeFrom} đến ${filterTimeTo}`
+                    : filterTimeFrom
+                    ? `Danh sách lịch hẹn trong ngày ${isoToDmy(filterDate)} từ ${filterTimeFrom} trở đi`
+                    : filterTimeTo
+                    ? `Danh sách lịch hẹn trong ngày ${isoToDmy(filterDate)} trước ${filterTimeTo}`
+                    : `Danh sách lịch hẹn trong ngày ${isoToDmy(filterDate)} (Toàn bộ khung giờ)`}
                 </h3>
                 <span className="text-xs text-gray-500 dark:text-zinc-400">
                   {timeRangePatients.length} lượt hẹn
@@ -968,16 +1067,16 @@ export default function PatientManagementApp() {
                             key={item.id}
                             className="hover:bg-gray-50/80 dark:hover:bg-zinc-800/40 transition-colors"
                           >
-                            <td className="py-4 px-4 sm:px-6 font-mono text-xs font-bold text-gray-500 dark:text-zinc-400">
+                            <td className="py-4 px-4 sm:px-6 text-xs font-bold text-gray-500 dark:text-zinc-400">
                               {index + 1}
                             </td>
-                            <td className="py-4 px-4 font-mono text-xs sm:text-sm font-medium text-gray-600 dark:text-zinc-300">
+                            <td className="py-4 px-4 text-xs sm:text-sm font-medium text-gray-600 dark:text-zinc-300">
                               {item.maBN}
                             </td>
                             <td className="py-4 px-4 font-medium text-gray-900 dark:text-white">
                               {bn?.hoTen || "Bệnh nhân"}
                             </td>
-                            <td className="py-4 px-4 text-blue-600 dark:text-blue-400 font-semibold font-mono">
+                            <td className="py-4 px-4 font-semibold text-blue-600 dark:text-blue-400">
                               {item.gioHen}
                             </td>
                             <td className="py-4 px-4">
@@ -1053,7 +1152,7 @@ export default function PatientManagementApp() {
                       value={searchMaBN}
                       onChange={(e) => setSearchMaBN(e.target.value)}
                       placeholder="Nhập mã bệnh nhân, ví dụ BN100235..."
-                      className="w-full h-11 pl-10 pr-4 text-sm bg-white dark:bg-zinc-800 border border-[#E2E8F0] dark:border-zinc-700 rounded-xl text-[#0F172A] dark:text-zinc-100 placeholder:text-[#94A3B8] dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-[#2563EB] dark:focus:border-blue-500 transition-all font-mono"
+                      className="w-full h-11 pl-10 pr-4 text-sm bg-white dark:bg-zinc-800 border border-[#E2E8F0] dark:border-zinc-700 rounded-xl text-[#0F172A] dark:text-zinc-100 placeholder:text-[#94A3B8] dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-[#2563EB] dark:focus:border-blue-500 transition-all"
                     />
                   </div>
                   <button
@@ -1077,7 +1176,7 @@ export default function PatientManagementApp() {
                       setSearchMaBN(code)
                       setCurrentPatientId(code)
                     }}
-                    className="h-7 sm:h-[30px] px-3 inline-flex items-center justify-center rounded-lg bg-[#EFF6FF] dark:bg-zinc-800 hover:bg-blue-100/80 dark:hover:bg-zinc-700 text-[#2563eb] dark:text-blue-400 border border-blue-200/60 dark:border-zinc-700 text-xs font-mono font-medium transition-colors cursor-pointer"
+                    className="h-7 sm:h-[30px] px-3 inline-flex items-center justify-center rounded-lg bg-[#EFF6FF] dark:bg-zinc-800 hover:bg-blue-100/80 dark:hover:bg-zinc-700 text-[#2563eb] dark:text-blue-400 border border-blue-200/60 dark:border-zinc-700 text-xs font-medium transition-colors cursor-pointer"
                   >
                     {code}
                   </button>
@@ -1111,7 +1210,7 @@ export default function PatientManagementApp() {
                           <h3 className="text-[18px] sm:text-[20px] font-semibold text-[#0F172A] dark:text-white leading-tight">
                             {searchedPatient.hoTen}
                           </h3>
-                          <p className="text-[13px] sm:text-sm font-medium text-[#2563EB] dark:text-blue-400 font-mono mt-0.5">
+                          <p className="text-[13px] sm:text-sm font-medium text-[#2563EB] dark:text-blue-400 mt-0.5">
                             {searchedPatient.maBN}
                           </p>
                         </div>
@@ -1166,7 +1265,7 @@ export default function PatientManagementApp() {
                           <Phone className="size-3.5 text-[#64748B] dark:text-zinc-400" />
                           Số điện thoại
                         </span>
-                        <span className="font-mono text-[14px] sm:text-[15px] font-semibold text-[#0F172A] dark:text-zinc-100 block">
+                        <span className="text-[14px] sm:text-[15px] font-semibold text-[#0F172A] dark:text-zinc-100 block">
                           {searchedPatient.sdt}
                         </span>
                       </div>
@@ -1177,7 +1276,7 @@ export default function PatientManagementApp() {
                           <Calendar className="size-3.5 text-[#64748B] dark:text-zinc-400" />
                           Ngày khám
                         </span>
-                        <span className="font-mono text-[14px] sm:text-[15px] font-semibold text-[#0F172A] dark:text-zinc-100 block">
+                        <span className="text-[14px] sm:text-[15px] font-semibold text-[#0F172A] dark:text-zinc-100 block">
                           {patientAppointmentStatus?.ngayKham || "—"}
                         </span>
                       </div>
@@ -1254,7 +1353,7 @@ export default function PatientManagementApp() {
                             {/* Dòng mốc khám: Ngày khám | Loại khám | Đã khám trên cùng 1 hàng */}
                             <div className="flex items-center gap-2.5 sm:gap-3.5 flex-wrap">
                               {/* Ngày khám (Font 14-15px, Font weight 600) */}
-                              <span className="text-[14px] sm:text-[15px] font-semibold text-[#0F172A] dark:text-zinc-100 font-mono tracking-tight shrink-0">
+                              <span className="text-[14px] sm:text-[15px] font-semibold text-[#0F172A] dark:text-zinc-100 tracking-tight shrink-0">
                                 {ls.ngayKham}
                               </span>
 
@@ -1485,7 +1584,7 @@ export default function PatientManagementApp() {
                           <tr key={lh.id} className="hover:bg-gray-50/80 dark:hover:bg-zinc-800/40 transition-colors">
                             <td className="py-3.5 px-4 font-medium text-gray-900 dark:text-white">{lh.hoTen}</td>
                             <td className="py-3.5 px-4 text-gray-600 dark:text-zinc-400">{lh.ngaySinh}</td>
-                            <td className="py-3.5 px-4 font-mono text-gray-600 dark:text-zinc-400">{lh.sdt}</td>
+                            <td className="py-3.5 px-4 text-gray-600 dark:text-zinc-400">{lh.sdt}</td>
                             <td className="py-3.5 px-4 text-gray-700 dark:text-zinc-300">{lh.nhuCauKham}</td>
                             <td className="py-3.5 px-4 text-gray-700 dark:text-zinc-300">{lh.ngay}</td>
                             <td className="py-3.5 px-4 text-gray-700 dark:text-zinc-300">{kg?.gio || "—"}</td>
@@ -1650,21 +1749,19 @@ export default function PatientManagementApp() {
 
                         return (
                           <tr key={item.id} className="hover:bg-gray-50/60 dark:hover:bg-zinc-800/40 transition-colors">
-                            <td className="py-4 px-4 sm:px-6 font-mono text-sm font-normal text-gray-800 dark:text-zinc-200">
+                            <td className="py-4 px-4 sm:px-6 text-sm font-normal text-gray-800 dark:text-zinc-200">
                               {item.maBN}
                             </td>
                             <td className="py-4 px-4 text-sm font-bold text-gray-900 dark:text-white">
                               {hoTen}
                             </td>
                             <td className="py-4 px-4">
-                              <span className="bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50 rounded-lg px-2.5 py-1 text-xs font-semibold inline-flex items-center gap-1.5 font-mono">
-                                <Calendar className="size-3.5" />
+                              <span className="bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50 rounded-lg px-2.5 py-1 text-xs font-semibold inline-flex items-center justify-center">
                                 {item.ngay}
                               </span>
                             </td>
                             <td className="py-4 px-4">
-                              <span className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900/50 rounded-lg px-2.5 py-1 text-xs font-semibold inline-flex items-center gap-1.5 font-mono">
-                                <Clock className="size-3.5" />
+                              <span className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900/50 rounded-lg px-2.5 py-1 text-xs font-semibold inline-flex items-center justify-center">
                                 {item.gio}
                               </span>
                             </td>

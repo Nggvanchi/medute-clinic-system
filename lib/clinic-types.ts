@@ -14,6 +14,8 @@ export interface HangDoiItem {
   maBN: string
   mucUuTien: MucUuTien
   gioHen: string
+  /** Ngày hẹn khám của bệnh nhân, định dạng "DD/MM/YYYY" hoặc "YYYY-MM-DD" */
+  ngayHen?: string
   /** Thời điểm bệnh nhân đăng ký / check-in vào hàng đợi, định dạng "HH:mm" */
   gioDangKy: string
   trangThai: TrangThaiHangDoi
